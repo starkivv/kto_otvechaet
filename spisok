@@ -1,0 +1,69 @@
+import os
+import telebot
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+import random
+
+bot = telebot.TeleBot('6774001254:AAHJL71gsgVNteEZytW5ih6ycMrODt8v50A')
+
+user_lists = {}
+
+@bot.message_handler(commands=['start'])
+def start(message):
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    list_directory = f'spisok/{user_id}'
+    os.makedirs(list_directory, exist_ok=True)
+
+    if os.path.exists(f'{list_directory}/list.txt'):
+        with open(f'{list_directory}/list.txt', 'r') as file:
+            user_lists[user_id] = file.read().splitlines()
+    else:
+        user_lists[user_id] = []
+
+    keyboard = InlineKeyboardMarkup()
+    keyboard.row(InlineKeyboardButton("Загрузить список", callback_data='upload'))
+    keyboard.row(InlineKeyboardButton("Выбрать участника", callback_data='choose'))
+
+    bot.send_message(chat_id=chat_id, text="Привет! Я бот для выбора случайного учащегося.", reply_markup=keyboard)
+
+@bot.callback_query_handler(func=lambda call: True)
+def inline_button(call):
+    chat_id = call.message.chat.id
+    user_id = call.from_user.id
+
+    if call.data == 'upload':
+        bot.send_message(chat_id=chat_id, text="Введите список участников, разделяя их запятой или каждого с новой строки.")
+        bot.register_next_step_handler(call.message, handle_message)
+
+    elif call.data == 'choose':
+        if not user_lists.get(user_id):
+            bot.send_message(chat_id=chat_id, text="Список участников пуст.")
+            return
+
+        chosen_student = random.choice(user_lists[user_id])
+
+        keyboard = InlineKeyboardMarkup()
+        keyboard.row(InlineKeyboardButton("Загрузить список", callback_data='upload'))
+        keyboard.row(InlineKeyboardButton("Выбрать участника", callback_data='choose'))
+
+        bot.send_message(chat_id=chat_id, text=f"Выбранный ученик: {chosen_student}", reply_markup=keyboard)
+
+def handle_message(message):
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    user_lists[user_id] = message.text.split(', ')
+
+    list_directory = f'spisok/{user_id}'
+    os.makedirs(list_directory, exist_ok=True)
+    with open(f'{list_directory}/list.txt', 'w') as file:
+        file.write('\n'.join(user_lists[user_id]))
+
+    keyboard = InlineKeyboardMarkup()
+    keyboard.row(InlineKeyboardButton("Загрузить список", callback_data='upload'))
+    keyboard.row(InlineKeyboardButton("Выбрать участника", callback_data='choose'))
+
+    bot.send_message(chat_id=chat_id, text="Список участников сохранен.", reply_markup=keyboard)
+
+bot.polling()
